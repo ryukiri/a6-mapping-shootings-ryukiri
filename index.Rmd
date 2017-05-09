@@ -1,0 +1,100 @@
+---
+title: "Mapping Shootings"
+author: "Austin Quach"
+date: "May 7, 2017"
+output: html_document
+---
+
+```{r, echo=FALSE, message=FALSE}
+setwd("C:/Users/Austin Quach/Google Drive/College/Sophomore/Info 201/Homework/a6-mapping-shootings-ryukiri")
+library(dplyr)
+library(knitr)
+shootings <- read.csv("data/shootings-2016.csv")
+
+num.shootings <- sum(shootings$injured) + sum(shootings$killed)
+num.death <- sum(shootings$killed)
+
+shootings.combined <- shootings %>% mutate(affected = injured + killed)
+city.affect <- (shootings.combined %>% filter(affected == max(affected))) %>% select(city)
+city.affect.death <- (shootings.combined %>% filter(affected == max(affected))) %>% select(killed)
+city.affect.total <-  (shootings.combined %>% filter(affected == max(affected))) %>% select(affected)
+
+states <- shootings.combined %>% 
+  group_by(state) %>% 
+  summarise(affected = sum(affected), injured = sum(injured), killed = sum(killed)) %>% 
+  arrange(-affected)
+worst.state <- states %>% 
+  filter(affected == max(affected)) %>% 
+  select(state)
+
+states <- mutate(states, code = state.abb[match(states$state, state.name)])
+
+most.injured <- states %>% filter(injured == max(injured)) %>% select(state)
+least.affected <-states %>% filter(injured == min(injured)) %>% select(state)
+least.affected.injury <-states %>% filter(injured == min(injured)) %>% select(injured)
+least.affected.killed <-states %>% filter(injured == min(injured)) %>% select(killed)
+
+washington.affected <-states %>% filter(state == 'Washington') %>% select(affected)
+washington.injury <-states %>% filter(state == 'Washington') %>% select(injured)
+washington.death <-states %>% filter(state == 'Washington') %>% select(killed)
+```
+
+## Summary Report
+In 2016, there were `r num.shootings` shootings that occured in the United States and `r num.death` lives were lost. `r city.affect` was the city that was affected the most, with `r city.affect.total` shootings and `r city.affect.death` deaths. The state that was affected the most was `r worst.state`.
+
+```{r, echo=FALSE, message=FALSE}
+kable(states)
+```
+
+From this table, one can clearly see statistics about shootings separated by state. Even though `r worst.state` is the state that was affected the most, `r most.injured` received the most injuries. The state with the least amount of people affected by shootings was `r least.affected` with only `r least.affected.injury` injuries and `r least.affected.killed` death. Washington did pretty average, in the middle of the pack, with `r washington.affected` affected, `r washington.injury` injured, and `r washington.death` deaths.
+
+## Description
+On `r (shootings.combined %>% filter(injured == max(injured)))$date`, a 29 year old security guard killed `r (shootings.combined %>% filter(injured == max(injured)))$killed` people and wounded `r (shootings.combined %>% filter(injured == max(injured)))$injured` others as a terrorist attack inside a gay nightclub in `r (shootings.combined %>% filter(injured == max(injured)))$city`, `r (shootings.combined %>% filter(injured == max(injured)))$state`. This event "was both the deadliest mass shooting by a single shooter and the deadliest incident of violence against LGBT people in United States history" (Source: [Wikipedia](https://en.wikipedia.org/wiki/2016_Orlando_nightclub_shooting)). After the 911 call, the shooter swore to the leader of ISIL (Islamic State of Iraq and the Levant) and said the shooting was due to the US killing of Abu Waheeb in Iraq the month before. He was in Orlando because of the American interventions in Iraq and Syria and told the negotiator to stop bombing ISIL. He was then shot and killed by the Orlando Police Department.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(plotly)
+df <- shootings.combined
+
+df$q <- with(df, cut(affected, unique(quantile(affected))))
+levels(df$q) <- paste(c("1st", "2nd", "3rd", "4th", "5th"), "Quantile")
+df$q <- as.ordered(df$q)
+
+g <- list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  showland = TRUE,
+  landcolor = toRGB("gray85"),
+  subunitwidth = 1,
+  countrywidth = 1,
+  subunitcolor = toRGB("white"),
+  countrycolor = toRGB("white")
+)
+
+p <- plot_geo(df, locationmode = 'USA-states', sizes = c(1, 250)) %>%
+  add_markers(
+    x = ~lng, y = ~lat, size = ~affected, color = ~q, hoverinfo = "text",
+    text = ~paste(df$city, "<br />", df$affected, " Affected", 
+                  "<br />", df$injured, " Injured", 
+                  "<br />", df$killed, " Killed")
+  ) %>%
+  layout(title = '2016 US Shootings by State<br>(Click legend to toggle)', geo = g)
+```
+## Interactive Map
+`r p`
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(plotly)
+
+map <- plot_ly(
+  x = states$code,
+  y = states$affected,
+  name = "Shootings by State",
+  type = "bar"
+)
+
+```
+
+## Interactive Plot
+`r map`
+This bar plot helps users visualize the vast differences in the amounts of shooting occurrences in each state. A bar graph is the best plot for this because heights of each bar will help the user see the differences.
